@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Tabele MRP</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <h1>Tabele MRP</h1>
+    {% for part, mrp in mrp_tables.items() %}
+        <h2>{{ part }}</h2>
+        <table>
+            <tr>
+                <th>Tydzień</th>
+                {% for week in range(8) %}
+                    <th>Week {{ week+1 }}</th>
+                {% endfor %}
+            </tr>
+            {% for key, values in mrp.items() %}
+                <tr>
+                    <td>{{ key }}</td>
+                    {% for value in values %}
+                        <td>{{ value }}</td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </table>
+    {% endfor %}
+</body>
+</html>

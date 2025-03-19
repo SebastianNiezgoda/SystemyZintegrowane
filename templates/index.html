@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>GHP i MRP</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <h1>Wprowadź dane początkowe</h1>
+    <form method="POST">
+        <label for="initial_stock_product">Początkowy stan łóżka:</label>
+        <input type="number" id="initial_stock_product" name="initial_stock_product" required><br>
+        {% for part in bom %}
+            {% if part != 'Łóżko' %}
+                <label for="initial_stock_{{ part }}">Początkowy stan {{ part }}:</label>
+                <input type="number" id="initial_stock_{{ part }}" name="initial_stock_{{ part }}" required><br>
+            {% endif %}
+        {% endfor %}
+        <h2>Przewidywany popyt na łóżko</h2>
+        {% for week in range(8) %}
+            <label for="demand_week_{{ week+1 }}">Tydzień {{ week+1 }}:</label>
+            <input type="number" id="demand_week_{{ week+1 }}" name="demand_week_{{ week+1 }}" required><br>
+        {% endfor %}
+        <button type="submit">Dalej</button>
+    </form>
+</body>
+</html>

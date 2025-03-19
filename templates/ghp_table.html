@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Tabela GHP</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <h1>Tabela GHP</h1>
+    <table>
+        <tr>
+            <th>Tydzień</th>
+            {% for week in ghp_table['weeks'] %}
+                <th>{{ week }}</th>
+            {% endfor %}
+        </tr>
+        <tr>
+            <td>Przewidywany popyt</td>
+            {% for demand in ghp_table['rows']['Przewidywany popyt'] %}
+                <td>{{ demand }}</td>
+            {% endfor %}
+        </tr>
+        <tr>
+            <td>Produkcja</td>
+            {% for production in ghp_table['rows']['Produkcja'] %}
+                <td>{{ production }}</td>
+            {% endfor %}
+        </tr>
+        <tr>
+            <td>Aktualny stan</td>
+            {% for stock in ghp_table['rows']['Aktualny stan'] %}
+                <td>{{ stock }}</td>
+            {% endfor %}
+        </tr>
+    </table>
+    <a href="{{ url_for('mrp_tables') }}">Przejdź do tabel MRP</a>
+</body>
+</html>
