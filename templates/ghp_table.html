@@ -17,22 +17,26 @@
         <tr>
             <td>Przewidywany popyt</td>
             {% for demand in ghp_table['rows']['Przewidywany popyt'] %}
-                <td>{{ demand }}</td>
+                <td {% if demand != 0 %}class="highlight"{% endif %}>{{ demand }}</td>
             {% endfor %}
         </tr>
         <tr>
             <td>Produkcja</td>
             {% for production in ghp_table['rows']['Produkcja'] %}
-                <td>{{ production }}</td>
+                <td {% if production != 0 %}class="highlight"{% endif %}>{{ production }}</td>
             {% endfor %}
         </tr>
         <tr>
             <td>Aktualny stan</td>
             {% for stock in ghp_table['rows']['Aktualny stan'] %}
-                <td>{{ stock }}</td>
+                <td {% if stock != 0 %}class="highlight{% if stock < 0 %} negative{% endif %}"{% endif %}>{{ stock }}</td>
             {% endfor %}
         </tr>
     </table>
-    <a href="{{ url_for('mrp_tables') }}">Przejdź do tabel MRP</a>
+    
+    <div class="button-container">
+        <a href="{{ url_for('mrp_tables') }}" class="nav-button">Przejdź do tabel MRP</a>
+        <a href="{{ url_for('index') }}" class="nav-button">Powrót do ekranu początkowego</a>
+    </div>
 </body>
 </html>

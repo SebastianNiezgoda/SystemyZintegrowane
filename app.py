@@ -16,8 +16,8 @@ initial_data = {
     },
     'bom': {
         'Łóżko': {'time': 1, 'batch_size': 20, 'components': {'Zagłówek': 1, 'Stelaż': 1, 'Rama łóżka': 1}},
-        'Stelaż': {'time': 1, 'batch_size': 100, 'components': {'Belka wzmacniająca': 1, 'Listwy sprężynujące': 1}},
-        'Rama łóżka': {'time': 1, 'batch_size': 50, 'components': {'Belki ramy': 1, 'Nogi': 4}},
+        'Stelaż': {'time': 1, 'batch_size': 100, 'components': {'Belka wzmacniająca': 1, 'Listwy sprężynujące': 8}},
+        'Rama łóżka': {'time': 1, 'batch_size': 50, 'components': {'Belki ramy': 4, 'Nogi': 4}},
         'Zagłówek': {'time': 2, 'batch_size': 100},
         'Belka wzmacniająca': {'time': 1, 'batch_size': 50},
         'Listwy sprężynujące': {'time': 1, 'batch_size': 100},
@@ -70,22 +70,60 @@ def ghp_table():
 def mrp_tables():
     mrp_tables = {}
     for part in initial_data['bom']:
-        mrp_tables[part] = calculate_mrp(part)
+        if part != 'Łóżko':
+            # Ustaw domyślny stan początkowy na 0 jeśli nie został podany
+            if part not in initial_data['initial_stock']:
+                initial_data['initial_stock'][part] = 0
+                
+            mrp = calculate_mrp(part)
+            if mrp:
+                mrp_tables[part] = mrp
     return render_template('mrp_tables.html', mrp_tables=mrp_tables)
 
 def calculate_mrp(part):
+    if part == 'Łóżko':
+        return None
+    
     mrp = {
-        'Całkowite zapotrzebowanie': [0] ,
-        'Planowane przyjęcia': [0] ,
-        'Przewidywane na stanie': [0] ,
-        'Zapotrzebowanie netto': [0] ,
-        'Planowane zamówienia': [0] ,
-        'Planowane przyjęcie zamówień': [0] ,
+        'Całkowite zapotrzebowanie': [0] * 8,
+        'Planowane przyjęcia': [0] * 8,
+        'Przewidywane na stanie': [0] * 8,
+        'Zapotrzebowanie netto': [0] * 8,
+        'Planowane zamówienia': [0] * 8,
+        'Planowane przyjęcie zamówień': [0] * 8,
+        'Używane w': []  # Nowe pole przechowujące informacje o rodzicach
     }
+    
+    # Znajdź wszystkie komponenty, które używają tej części
+    for parent, data in initial_data['bom'].items():
+        if 'components' in data and part in data['components']:
+            mrp['Używane w'].append(parent)
+
+    initial_stock = initial_data['initial_stock'].get(part, 0)
+    batch_size = initial_data['bom'][part]['batch_size']
+    lead_time = initial_data['bom'][part]['time']
+
+    # Oblicz całkowite zapotrzebowanie (jak wcześniej)
+    bed_production = initial_data['ghp_table']['rows']['Produkcja']
+    if part in initial_data['bom']['Łóżko']['components']:
+        quantity_per_bed = initial_data['bom']['Łóżko']['components'][part]
+        for week in range(8):
+            mrp['Całkowite zapotrzebowanie'][week] = bed_production[week] * quantity_per_bed
+    else:
+        for component, data in initial_data['bom'].items():
+            if 'components' in data and part in data['components']:
+                quantity_per_component = data['components'][part]
+                if component in initial_data['bom']['Łóżko']['components']:
+                    quantity_per_bed = initial_data['bom']['Łóżko']['components'][component]
+                    for week in range(8):
+                        mrp['Całkowite zapotrzebowanie'][week] = bed_production[week] * quantity_per_bed * quantity_per_component
 
     
+        
+        
 
     return mrp
-
 if __name__ == '__main__':
     app.run(debug=True)
+
+    

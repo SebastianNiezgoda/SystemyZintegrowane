@@ -8,7 +8,19 @@
 <body>
     <h1>Tabele MRP</h1>
     {% for part, mrp in mrp_tables.items() %}
-        <h2>{{ part }}</h2>
+        <div class="component-hierarchy">
+            <h2>{{ part }}</h2>
+            {% if mrp['Używane w'] %}
+                <p>Używane w: 
+                    {% for parent in mrp['Używane w'] %}
+                        <span class="parent-item">{{ parent }}</span>{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                </p>
+            {% else %}
+                <p>Element końcowy</p>
+            {% endif %}
+        </div>
+        
         <table>
             <tr>
                 <th>Tydzień</th>
@@ -17,14 +29,24 @@
                 {% endfor %}
             </tr>
             {% for key, values in mrp.items() %}
-                <tr>
-                    <td>{{ key }}</td>
-                    {% for value in values %}
-                        <td>{{ value }}</td>
-                    {% endfor %}
-                </tr>
+                {% if key != 'Używane w' %}
+                    <tr>
+                        <td>{{ key }}</td>
+                        {% for value in values %}
+                            {% if value != 0 %}
+                                <td class="highlight {% if value > 0 %}positive{% elif value < 0 %}negative{% endif %}">
+                                    {{ value }}
+                                </td>
+                            {% else %}
+                                <td>{{ value }}</td>
+                            {% endif %}
+                        {% endfor %}
+                    </tr>
+                {% endif %}
             {% endfor %}
         </table>
     {% endfor %}
+    
+    <a href="{{ url_for('ghp_table') }}" class="back-button">Powrót do tabeli GHP</a>
 </body>
 </html>
