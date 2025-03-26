@@ -103,7 +103,7 @@ def calculate_mrp(part):
     batch_size = initial_data['bom'][part]['batch_size']
     lead_time = initial_data['bom'][part]['time']
 
-    # Oblicz całkowite zapotrzebowanie (jak wcześniej)
+    # Oblicz całkowite zapotrzebowanie 
     bed_production = initial_data['ghp_table']['rows']['Produkcja']
     if part in initial_data['bom']['Łóżko']['components']:
         quantity_per_bed = initial_data['bom']['Łóżko']['components'][part]
