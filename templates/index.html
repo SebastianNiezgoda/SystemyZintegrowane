@@ -8,14 +8,26 @@
 <body>
     <h1>Wprowadź dane początkowe</h1>
     <form method="POST">
-        <label for="initial_stock_product">Początkowy stan łóżka:</label>
-        <input type="number" id="initial_stock_product" name="initial_stock_product" required><br>
+        <h2>Początkowe stany i wielkości partii</h2>
+        
+        <div>
+            <label for="initial_stock_product">Początkowy stan łóżka:</label>
+            <input type="number" id="initial_stock_product" name="initial_stock_product" required>
+            <label for="batch_size_Łóżko">Wielkość partii łóżek:</label>
+            <input type="number" id="batch_size_Łóżko" name="batch_size_Łóżko" required min="1">
+        </div>
+        
         {% for part in bom %}
             {% if part != 'Łóżko' %}
-                <label for="initial_stock_{{ part }}">Początkowy stan {{ part }}:</label>
-                <input type="number" id="initial_stock_{{ part }}" name="initial_stock_{{ part }}" required><br>
+                <div>
+                    <label for="initial_stock_{{ part }}">Początkowy stan {{ part }}:</label>
+                    <input type="number" id="initial_stock_{{ part }}" name="initial_stock_{{ part }}" required>
+                    <label for="batch_size_{{ part }}">Wielkość partii {{ part }}:</label>
+                    <input type="number" id="batch_size_{{ part }}" name="batch_size_{{ part }}" required min="1">
+                </div>
             {% endif %}
         {% endfor %}
+        
         <h2>Przewidywany popyt na łóżko</h2>
         {% for week in range(8) %}
             <label for="demand_week_{{ week+1 }}">Tydzień {{ week+1 }}:</label>

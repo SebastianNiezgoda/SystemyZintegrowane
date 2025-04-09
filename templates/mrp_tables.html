@@ -4,12 +4,43 @@
     <meta charset="UTF-8">
     <title>Tabele MRP</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
     <h1>Tabele MRP</h1>
+    
+    <h2>Podgląd tabeli GHP</h2>
+    <table class="ghp-preview">
+        <tr>
+            <th>Tydzień</th>
+            {% for week in ghp_table['weeks'] %}
+                <th>{{ week }}</th>
+            {% endfor %}
+        </tr>
+        <tr>
+            <td>Przewidywany popyt</td>
+            {% for demand in ghp_table['rows']['Przewidywany popyt'] %}
+                <td {% if demand != 0 %}class="highlight"{% endif %}>{{ demand }}</td>
+            {% endfor %}
+        </tr>
+        <tr>
+            <td>Produkcja (partie po {{ batch_sizes['Łóżko'] }})</td>
+            {% for production in ghp_table['rows']['Produkcja'] %}
+                <td {% if production != 0 %}class="highlight"{% endif %}>{{ production }}</td>
+            {% endfor %}
+        </tr>
+        <tr>
+            <td>Aktualny stan</td>
+            {% for stock in ghp_table['rows']['Aktualny stan'] %}
+                <td {% if stock != 0 %}class="highlight{% if stock < 0 %} negative{% endif %}"{% endif %}>{{ stock }}</td>
+            {% endfor %}
+        </tr>
+    </table>
+    
+    <h2>Tabele MRP dla komponentów</h2>
     {% for part, mrp in mrp_tables.items() %}
         <div class="component-hierarchy">
-            <h2>{{ part }}</h2>
+            <h3>{{ part }} (partie po {{ batch_sizes[part] }}, czas produkcji: {{ bom[part]['time'] }} tyg.)</h3>
             {% if mrp['Używane w'] %}
                 <p>Używane w: 
                     {% for parent in mrp['Używane w'] %}
@@ -21,7 +52,7 @@
             {% endif %}
         </div>
         
-        <table>
+        <table class="mrp-table" data-part="{{ part }}">
             <tr>
                 <th>Tydzień</th>
                 {% for week in range(8) %}
@@ -32,13 +63,21 @@
                 {% if key != 'Używane w' %}
                     <tr>
                         <td>{{ key }}</td>
-                        {% for value in values %}
-                            {% if value != 0 %}
-                                <td class="highlight {% if value > 0 %}positive{% elif value < 0 %}negative{% endif %}">
-                                    {{ value }}
+                        {% for week in range(8) %}
+                            {% if key in ['Planowane zamówienia'] %}
+                                <td class="editable {% if values[week] != 0 %}highlight{% endif %}" 
+                                    data-field="{{ key }}" 
+                                    data-week="{{ week }}">
+                                    {{ values[week] }}
+                                </td>
+                            {% elif key in ['Planowane przyjęcie zamówień'] %}
+                                <td class="{% if values[week] != 0 %}highlight{% endif %}">
+                                    {{ values[week] }}
                                 </td>
                             {% else %}
-                                <td>{{ value }}</td>
+                                <td class="{% if values[week] != 0 %}highlight {% if values[week] > 0 %}positive{% elif values[week] < 0 %}negative{% endif %}{% endif %}">
+                                    {{ values[week] }}
+                                </td>
                             {% endif %}
                         {% endfor %}
                     </tr>
@@ -47,6 +86,54 @@
         </table>
     {% endfor %}
     
-    <a href="{{ url_for('ghp_table') }}" class="back-button">Powrót do tabeli GHP</a>
+    <div class="button-container">
+        <form method="POST" action="{{ url_for('mrp_tables') }}">
+            <button type="submit" name="confirm" class="confirm-button">Zatwierdź dane</button>
+        </form>
+        <a href="{{ url_for('ghp_table') }}" class="back-button">Powrót do tabeli GHP</a>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            $('.editable').on('click', function() {
+                const currentValue = $(this).text().trim();
+                const input = $('<input>', {
+                    type: 'number',
+                    value: currentValue,
+                    class: 'edit-input'
+                });
+                
+                $(this).html(input);
+                input.focus();
+                
+                input.on('blur', function() {
+                    const newValue = $(this).val();
+                    const td = $(this).parent();
+                    td.text(newValue);
+                    
+                    const part = td.closest('.mrp-table').data('part');
+                    const week = td.data('week');
+                    const field = td.data('field');
+                    
+                    $.post('/mrp_tables', {
+                        part: part,
+                        week: week,
+                        field: field,
+                        value: newValue
+                    }, function(response) {
+                        if (response.status === 'success') {
+                            location.reload();
+                        }
+                    });
+                });
+                
+                input.on('keypress', function(e) {
+                    if (e.which === 13) {
+                        $(this).blur();
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>
