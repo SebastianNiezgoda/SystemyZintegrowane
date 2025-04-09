@@ -89,6 +89,9 @@
     <div class="button-container">
         <form method="POST" action="{{ url_for('mrp_tables') }}">
             <button type="submit" name="confirm" class="confirm-button">Zatwierdź dane</button>
+            {% if has_history %}
+                <button type="submit" name="undo" class="undo-button">Cofnij zmiany</button>
+            {% endif %}
         </form>
         <a href="{{ url_for('ghp_table') }}" class="back-button">Powrót do tabeli GHP</a>
     </div>

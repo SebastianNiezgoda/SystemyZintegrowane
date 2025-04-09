@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from collections import defaultdict
+import copy
 
 app = Flask(__name__)
 
@@ -27,6 +28,16 @@ initial_data = {
     'batch_sizes': {},
     'mrp_tables': {}
 }
+
+# Historia zmian
+mrp_history = []
+
+def deepcopy_mrp_tables():
+    return {
+        part: {k: v[:] if k != 'Używane w' else copy.deepcopy(v) 
+               for k, v in table.items()}
+        for part, table in initial_data['mrp_tables'].items()
+    }
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -73,12 +84,27 @@ def ghp_table():
 
 @app.route('/mrp_tables', methods=['GET', 'POST'])
 def mrp_tables():
+    global mrp_history
+    
     if request.method == 'POST':
         if 'confirm' in request.form:
+            # Zapisz aktualny stan przed zmianami
+            mrp_history.append(deepcopy_mrp_tables())
+            # Ogranicz historię do 5 ostatnich wersji
+            if len(mrp_history) > 5:
+                mrp_history.pop(0)
+                
             for part in initial_data['mrp_tables']:
                 update_planned_receipts(part)
                 recalculate_stock(part)
                 update_dependent_components(part)
+            return redirect(url_for('mrp_tables'))
+        elif 'undo' in request.form and mrp_history:
+            # Przywróć poprzednią wersję
+            last_state = mrp_history.pop()
+            for part, table_data in last_state.items():
+                for field, values in table_data.items():
+                    initial_data['mrp_tables'][part][field] = values[:] if field != 'Używane w' else copy.deepcopy(values)
             return redirect(url_for('mrp_tables'))
         else:
             part = request.form['part']
@@ -104,7 +130,8 @@ def mrp_tables():
         mrp_tables=initial_data['mrp_tables'],
         ghp_table=initial_data['ghp_table'],
         batch_sizes=initial_data['batch_sizes'],
-        bom=initial_data['bom']
+        bom=initial_data['bom'],
+        has_history=bool(mrp_history)
     )
 
 def create_empty_mrp_table(part):
@@ -142,6 +169,9 @@ def calculate_initial_demand(part):
 def update_planned_receipts(part):
     mrp = initial_data['mrp_tables'][part]
     lead_time = initial_data['bom'][part]['time']
+    
+    # Wyczyść poprzednie planowane przyjęcia
+    mrp['Planowane przyjęcie zamówień'] = [0] * 8
     
     for week in range(8):
         if mrp['Planowane zamówienia'][week] > 0:
