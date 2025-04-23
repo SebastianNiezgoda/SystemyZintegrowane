@@ -1,217 +1,99 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
-from collections import defaultdict
-import copy
+from flask import Flask, render_template, request, jsonify
+import math
 
 app = Flask(__name__)
 
-# Inicjalizacja danych
-initial_data = {
-    'initial_stock': {},
-    'ghp_table': {
-        'weeks': [f'Week {i+1}' for i in range(8)],
-        'rows': {
-            'Przewidywany popyt': [0] * 8,
-            'Produkcja': [0] * 8,
-            'Aktualny stan': [0] * 8
-        }
-    },
-    'bom': {
-        'Łóżko': {'time': 1, 'components': {'Zagłówek': 1, 'Stelaż': 1, 'Rama łóżka': 1}},
-        'Stelaż': {'time': 1, 'components': {'Belka wzmacniająca': 1, 'Listwy sprężynujące': 8}},
-        'Rama łóżka': {'time': 1, 'components': {'Belki ramy': 4, 'Nogi': 4}},
-        'Zagłówek': {'time': 2},
-        'Belka wzmacniająca': {'time': 1},
-        'Listwy sprężynujące': {'time': 1},
-        'Belki ramy': {'time': 1},
-        'Nogi': {'time': 2}
-    },
-    'batch_sizes': {},
-    'mrp_tables': {}
+DEFAULT_PERIODS = [1, 2, 3, 4, 5, 6]
+COMPONENTS = {
+    'bed': {'name': 'Łóżko', 'bom_level': 0, 'initial_inventory': 5, 'lead_time': 1, 'lot_size': 10},
+    'headboard': {'name': 'Zagłówek', 'bom_level': 1, 'initial_inventory': 10, 'lead_time': 1, 'lot_size': 50, 'multiplier': 1},
+    'mattress_base': {'name': 'Stelaż pod materac', 'bom_level': 1, 'initial_inventory': 8, 'lead_time': 1, 'lot_size': 60, 'multiplier': 1},
+    'center_beam': {'name': 'Środkowa belka wzmacniająca', 'bom_level': 2, 'initial_inventory': 15, 'lead_time': 1, 'lot_size': 60, 'multiplier': 1},
+    'slats': {'name': 'Listwy sprężynujące', 'bom_level': 2, 'initial_inventory': 30, 'lead_time': 1, 'lot_size': 40, 'multiplier': 10},
+    'bed_frame': {'name': 'Rama łóżka', 'bom_level': 1, 'initial_inventory': 12, 'lead_time': 1, 'lot_size': 40, 'multiplier': 1},
+    'frame_beams': {'name': 'Belki ramy', 'bom_level': 2, 'initial_inventory': 20, 'lead_time': 1, 'lot_size': 50, 'multiplier': 4},
+    'legs': {'name': 'Nogi', 'bom_level': 2, 'initial_inventory': 16, 'lead_time': 1, 'lot_size': 80, 'multiplier': 4}
 }
 
-# Historia zmian
-mrp_history = []
-
-def deepcopy_mrp_tables():
-    return {
-        part: {k: v[:] if k != 'Używane w' else copy.deepcopy(v) 
-               for k, v in table.items()}
-        for part, table in initial_data['mrp_tables'].items()
-    }
-
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def index():
-    if request.method == 'POST':
-        initial_data['initial_stock']['Łóżko'] = int(request.form['initial_stock_product'])
-        initial_data['batch_sizes']['Łóżko'] = int(request.form['batch_size_Łóżko'])
+    return render_template('index.html', 
+                         periods=DEFAULT_PERIODS,
+                         initial_inventory=COMPONENTS['bed']['initial_inventory'],
+                         initial_lead_time=COMPONENTS['bed']['lead_time'])
+
+@app.route('/calculate_ghp', methods=['POST'])
+def calculate_ghp():
+    try:
+        data = request.json
+        periods = data.get('periods', DEFAULT_PERIODS)
+        demand = data['demand'][:len(periods)]
+        inventory = data['inventory']
+        lead_time = data['lead_time']
         
-        for part in initial_data['bom']:
-            if part != 'Łóżko':
-                initial_data['initial_stock'][part] = int(request.form[f'initial_stock_{part}'])
-                initial_data['batch_sizes'][part] = int(request.form[f'batch_size_{part}'])
+        available = []
+        production = [0] * len(periods)
+        current_inventory = inventory
         
-        initial_data['ghp_table']['rows']['Przewidywany popyt'] = [
-            int(request.form[f'demand_week_{i+1}']) for i in range(8)
-        ]
-        return redirect(url_for('ghp_table'))
-    
-    return render_template('index.html', bom=initial_data['bom'])
-
-@app.route('/ghp_table')
-def ghp_table():
-    demand = initial_data['ghp_table']['rows']['Przewidywany popyt']
-    production = initial_data['ghp_table']['rows']['Produkcja']
-    stock = initial_data['ghp_table']['rows']['Aktualny stan']
-    initial_stock = initial_data['initial_stock']['Łóżko']
-    batch_size = initial_data['batch_sizes']['Łóżko']
-
-    for i in range(8):
-        if i == 0:
-            stock[i] = initial_stock - demand[i]
-        else:
-            stock[i] = stock[i-1] - demand[i]
+        for i in range(len(periods)):
+            current_inventory -= demand[i]
+            if current_inventory < 0:
+                order_period = i - lead_time
+                if order_period >= 0:
+                    production[order_period] = math.ceil(-current_inventory / 10) * 10
+                    current_inventory += production[order_period]
+            available.append(current_inventory)
         
-        if stock[i] < 0:
-            required = -stock[i]
-            production[i-1] = (required // batch_size) * batch_size
-            if required % batch_size != 0:
-                production[i-1] += batch_size
-            stock[i] += production[i-1]
-        else:
-            production[i] = 0
+        return jsonify({
+            'available': available,
+            'production': production,
+            'components': {k: v for k, v in COMPONENTS.items() if k != 'bed'},
+            'periods': periods
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-    return render_template('ghp_table.html', ghp_table=initial_data['ghp_table'])
-
-@app.route('/mrp_tables', methods=['GET', 'POST'])
-def mrp_tables():
-    global mrp_history
-    
-    if request.method == 'POST':
-        if 'confirm' in request.form:
-            # Zapisz aktualny stan przed zmianami
-            mrp_history.append(deepcopy_mrp_tables())
-            # Ogranicz historię do 5 ostatnich wersji
-            if len(mrp_history) > 5:
-                mrp_history.pop(0)
+@app.route('/calculate_mrp', methods=['POST'])
+def calculate_mrp():
+    try:
+        data = request.json
+        periods = data.get('periods', DEFAULT_PERIODS)
+        demand = data['demand'][:len(periods)]
+        inventory = data['inventory']
+        lead_time = data['lead_time']
+        lot_size = max(1, data['lot_size'])
+        manual_receipts = data.get('manual_receipts', [0]*len(periods))[:len(periods)]
+        
+        projected_on_hand = []
+        net_requirements = [0] * len(periods)
+        planned_orders = [0] * len(periods)
+        planned_order_receipts = [0] * len(periods)
+        current_inventory = inventory
+        
+        for i in range(len(periods)):
+            current_inventory = current_inventory - demand[i] + manual_receipts[i]
+            
+            if current_inventory < 0:
+                net_requirements[i] = -current_inventory
+                order_qty = math.ceil(net_requirements[i] / lot_size) * lot_size
+                order_period = i - lead_time
                 
-            for part in initial_data['mrp_tables']:
-                update_planned_receipts(part)
-                recalculate_stock(part)
-                update_dependent_components(part)
-            return redirect(url_for('mrp_tables'))
-        elif 'undo' in request.form and mrp_history:
-            # Przywróć poprzednią wersję
-            last_state = mrp_history.pop()
-            for part, table_data in last_state.items():
-                for field, values in table_data.items():
-                    initial_data['mrp_tables'][part][field] = values[:] if field != 'Używane w' else copy.deepcopy(values)
-            return redirect(url_for('mrp_tables'))
-        else:
-            part = request.form['part']
-            week = int(request.form['week'])
-            field = request.form['field']
-            value = int(request.form['value'])
+                if order_period >= 0:
+                    planned_orders[order_period] = order_qty
+                    planned_order_receipts[i] = order_qty
+                    current_inventory += order_qty
             
-            if part not in initial_data['mrp_tables']:
-                initial_data['mrp_tables'][part] = create_empty_mrp_table(part)
-            
-            initial_data['mrp_tables'][part][field][week] = value
-            return jsonify({'status': 'success'})
-    
-    if not initial_data['mrp_tables']:
-        for part in initial_data['bom']:
-            if part != 'Łóżko':
-                initial_data['mrp_tables'][part] = create_empty_mrp_table(part)
-                calculate_initial_demand(part)
-                recalculate_stock(part)
-    
-    return render_template(
-        'mrp_tables.html',
-        mrp_tables=initial_data['mrp_tables'],
-        ghp_table=initial_data['ghp_table'],
-        batch_sizes=initial_data['batch_sizes'],
-        bom=initial_data['bom'],
-        has_history=bool(mrp_history)
-    )
-
-def create_empty_mrp_table(part):
-    return {
-        'Całkowite zapotrzebowanie': [0] * 8,
-        'Planowane przyjęcia': [0] * 8,
-        'Przewidywane na stanie': [0] * 8,
-        'Zapotrzebowanie netto': [0] * 8,
-        'Planowane zamówienia': [0] * 8,
-        'Planowane przyjęcie zamówień': [0] * 8,
-        'Używane w': find_parents(part)
-    }
-
-def find_parents(part):
-    parents = []
-    for parent, data in initial_data['bom'].items():
-        if 'components' in data and part in data['components']:
-            parents.append(parent)
-    return parents
-
-def calculate_initial_demand(part):
-    if part in ['Zagłówek', 'Stelaż', 'Rama łóżka']:
-        bed_production = initial_data['ghp_table']['rows']['Produkcja']
-        quantity_per_bed = initial_data['bom']['Łóżko']['components'][part]
-        for week in range(8):
-            initial_data['mrp_tables'][part]['Całkowite zapotrzebowanie'][week] = bed_production[week] * quantity_per_bed
-    else:
-        for parent in initial_data['mrp_tables'][part]['Używane w']:
-            if parent in initial_data['mrp_tables']:
-                parent_orders = initial_data['mrp_tables'][parent]['Planowane zamówienia']
-                quantity_per_parent = initial_data['bom'][parent]['components'][part]
-                for week in range(8):
-                    initial_data['mrp_tables'][part]['Całkowite zapotrzebowanie'][week] += parent_orders[week] * quantity_per_parent
-
-def update_planned_receipts(part):
-    mrp = initial_data['mrp_tables'][part]
-    lead_time = initial_data['bom'][part]['time']
-    
-    # Wyczyść poprzednie planowane przyjęcia
-    mrp['Planowane przyjęcie zamówień'] = [0] * 8
-    
-    for week in range(8):
-        if mrp['Planowane zamówienia'][week] > 0:
-            receipt_week = min(week + lead_time, 7)
-            mrp['Planowane przyjęcie zamówień'][receipt_week] = mrp['Planowane zamówienia'][week]
-
-def recalculate_stock(part):
-    mrp = initial_data['mrp_tables'][part]
-    initial_stock = initial_data['initial_stock'].get(part, 0)
-    stop_calculation = False
-    
-    for week in range(8):
-        if stop_calculation:
-            mrp['Przewidywane na stanie'][week] = 0
-            mrp['Zapotrzebowanie netto'][week] = 0
-            continue
-            
-        if week == 0:
-            previous_stock = initial_stock
-        else:
-            previous_stock = mrp['Przewidywane na stanie'][week-1]
+            projected_on_hand.append(current_inventory)
         
-        mrp['Przewidywane na stanie'][week] = (
-            previous_stock + 
-            mrp['Planowane przyjęcia'][week] + 
-            mrp['Planowane przyjęcie zamówień'][week] - 
-            mrp['Całkowite zapotrzebowanie'][week]
-        )
-        
-        mrp['Zapotrzebowanie netto'][week] = max(-mrp['Przewidywane na stanie'][week], 0)
-        
-        if mrp['Zapotrzebowanie netto'][week] > 0:
-            stop_calculation = True
-
-def update_dependent_components(part):
-    for component, mrp in initial_data['mrp_tables'].items():
-        if part in mrp['Używane w']:
-            calculate_initial_demand(component)
-            recalculate_stock(component)
-            update_dependent_components(component)
+        return jsonify({
+            'projected_on_hand': projected_on_hand,
+            'net_requirements': net_requirements,
+            'planned_orders': planned_orders,
+            'planned_order_receipts': planned_order_receipts,
+            'manual_receipts': manual_receipts
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

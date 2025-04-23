@@ -3,49 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GHP i MRP - Dane początkowe</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <title>MRP - Produkcja Łóżek</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
     <div class="container">
-        <h1>Wprowadź dane początkowe</h1>
-        <form method="POST">
-            <div class="form-section">
-                <h2>Początkowe stany i wielkości partii</h2>
-                
-                <div class="form-row">
-                    <label for="initial_stock_product">Początkowy stan łóżka:</label>
-                    <input type="number" id="initial_stock_product" name="initial_stock_product" required min="0">
-                    <label for="batch_size_Łóżko">Wielkość partii łóżek:</label>
-                    <input type="number" id="batch_size_Łóżko" name="batch_size_Łóżko" required min="1">
-                </div>
-                
-                {% for part in bom %}
-                    {% if part != 'Łóżko' %}
-                        <div class="form-row">
-                            <label for="initial_stock_{{ part }}">Początkowy stan {{ part }}:</label>
-                            <input type="number" id="initial_stock_{{ part }}" name="initial_stock_{{ part }}" required min="0">
-                            <label for="batch_size_{{ part }}">Wielkość partii {{ part }}:</label>
-                            <input type="number" id="batch_size_{{ part }}" name="batch_size_{{ part }}" required min="1">
-                        </div>
-                    {% endif %}
-                {% endfor %}
+        <h1>System MRP dla Produkcji Łóżek</h1>
+        
+        <div class="table-container">
+            <h3 class="table-title">Łóżko - GHP</h3>
+            <div class="table-controls">
+                <label>
+                    Czas realizacji:
+                    <input type="number" id="lead-time" min="0" value="{{ initial_lead_time }}">
+                </label>
+                <label>
+                    Na stanie:
+                    <input type="number" id="inventory" min="0" value="{{ initial_inventory }}">
+                </label>
+                <button id="calculate-ghp">Oblicz GHP</button>
             </div>
-            
-            <div class="form-section">
-                <h2>Przewidywany popyt na łóżko</h2>
-                <div class="demand-grid">
-                    {% for week in range(8) %}
-                        <div class="demand-item">
-                            <label for="demand_week_{{ week+1 }}">Tydzień {{ week+1 }}:</label>
-                            <input type="number" id="demand_week_{{ week+1 }}" name="demand_week_{{ week+1 }}" required min="0">
-                        </div>
-                    {% endfor %}
-                </div>
-            </div>
-            
-            <button type="submit">Dalej</button>
-        </form>
+
+            <table class="table" id="ghp-table">
+                <thead>
+                    <tr>
+                        <th>Okres</th>
+                        {% for period in periods %}
+                        <th>{{ period }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Popyt</td>
+                        {% for period in periods %}
+                        <td>
+                            <input type="number" class="demand-input" 
+                                   data-period="{{ loop.index0 }}" 
+                                   min="0" value="0">
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    <tr id="available-row" style="display: none;">
+                        <td>Dostępne</td>
+                        {% for period in periods %}
+                        <td class="available" data-period="{{ loop.index0 }}">0</td>
+                        {% endfor %}
+                    </tr>
+                    <tr id="production-row" style="display: none;">
+                        <td>Produkcja</td>
+                        {% for period in periods %}
+                        <td class="production" data-period="{{ loop.index0 }}">0</td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="mrp-tables" style="display: none;">
+            <!-- Tabele MRP będą wstawiane tutaj -->
+        </div>
     </div>
+
+    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
 </body>
 </html>
